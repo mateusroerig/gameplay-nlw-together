@@ -1,46 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { Appointment, AppointmentProps } from '../../components/Appointment';
 import { CategorySelect } from '../../components/CategorySelect';
-import { Appointment } from '../../components/Appointment';
 import { ListDivider } from '../../components/ListDivider';
 import { ListHeader } from '../../components/ListHeader';
 import { Background } from '../../components/Background';
 import { ButtonAdd } from '../../components/ButtonAdd';
 import { Profile } from '../../components/Profile';
 
+import { COLLECTION_APPOINTMENTS } from '../../configs/database';
 import { styles } from './styles';
-
-const appointments = [
-  {
-    id: '1',
-    guild: {
-      id: '1',
-      name: 'Lendários',
-      icon: null,
-      owner: true,
-    },
-    category: '1',
-    date: '22/06 às 20:40h',
-    description: 'É hoje que vamos chegar ao challenger sem perder uma partida da md10',
-  },
-  {
-    id: '2',
-    guild: {
-      id: '1',
-      name: 'Lendários',
-      icon: null,
-      owner: false,
-    },
-    category: '1',
-    date: '22/06 às 20:40h',
-    description: 'É hoje que vamos chegar ao challenger sem perder uma partida da md10',
-  },
-];
+import { Load } from '../../components/Load';
 
 export function Home() {
   const [category, setCategory] = useState('');
+  const [appointments, setAppointments] = useState<AppointmentProps[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const navigation = useNavigation();
  
@@ -48,13 +26,30 @@ export function Home() {
     categoryId === category ? setCategory('') : setCategory(categoryId);
   };
 
-  function handleAppointmentDetails() {
-    navigation.navigate('AppointmentDetails');
+  function handleAppointmentDetails(guildSelected: AppointmentProps) {
+    navigation.navigate('AppointmentDetails', { guildSelected });
   };
 
   function handleAppointmentCreate() {
     navigation.navigate('AppointmentCreate');
   };
+
+  async function loadAppointments() {
+    const response = await AsyncStorage.getItem(COLLECTION_APPOINTMENTS);
+    const storage: AppointmentProps[] = response ? JSON.parse(response) : [];
+
+    if (category) {
+      setAppointments(storage.filter(item => item.category === category));
+    } else {
+      setAppointments(storage);
+    }
+
+    setLoading(false);
+  }
+
+  useFocusEffect(useCallback(() => {
+    loadAppointments();
+  }, [category]));
 
   return (
     <Background>
@@ -66,24 +61,29 @@ export function Home() {
         categorySelected={category}
         setCategory={handleCategorySelect}
       />
-      <ListHeader 
-        title="Partidas agendadas"
-        subtitle={`Total ${appointments.length}`}
-      />
-      <FlatList
-        data={appointments}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <Appointment 
-            data={item} 
-            onPress={handleAppointmentDetails}
+      {
+        loading ? <Load /> :        
+        <>  
+          <ListHeader 
+            title="Partidas agendadas"
+            subtitle={`Total ${appointments.length}`}
           />
-        )}
-        ItemSeparatorComponent={() => <ListDivider />}
-        style={styles.matches}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 69 }}
-      />
+          <FlatList
+            data={appointments}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => (
+              <Appointment 
+                data={item} 
+                onPress={() => handleAppointmentDetails(item)}
+              />
+            )}
+            ItemSeparatorComponent={() => <ListDivider />}
+            style={styles.matches}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 69 }}
+          />
+        </>
+      }
     </Background>
   );
 };
